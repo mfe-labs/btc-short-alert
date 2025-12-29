@@ -2,6 +2,7 @@
 Bitcoin Short Alert System - Main Application
 Monitors BTC/USD price and sends email alerts for short opportunities
 """
+import os
 import time
 import logging
 from datetime import datetime
@@ -42,6 +43,16 @@ def main():
     # Load initial state
     state = load_state()
     logger.info(f"State loaded. Position open: {state['position_open']}")
+    
+    # Optional: Reset state if RESET_STATE environment variable is set
+    if os.getenv('RESET_STATE', '').lower() == 'true':
+        if state['position_open']:
+            logger.info("RESET_STATE=true detected. Closing position...")
+            close_position(state)
+            save_state(state)
+            logger.info("Position closed. State reset.")
+        else:
+            logger.info("RESET_STATE=true detected, but no position is open.")
     
     # Main monitoring loop
     loop_count = 0
