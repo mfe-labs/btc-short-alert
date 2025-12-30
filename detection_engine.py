@@ -25,8 +25,8 @@ def check_entry_signal(current_price: float, price_history: List[Dict]) -> Tuple
     # Calculate spike percentage
     spike_pct = ((current_price - six_hr_low) / six_hr_low) * 100
     
-    # Entry signal: 3% or more spike (changed from 4.0%)
-    if spike_pct >= 3.0:
+    # Entry signal: 0.1% or more spike (TESTING - temporarily lowered from 3.0%)
+    if spike_pct >= 0.1:
         return True, six_hr_low, spike_pct
     
     return False, six_hr_low, spike_pct
