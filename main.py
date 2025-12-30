@@ -167,12 +167,14 @@ def main():
                             f"Position NOT opened. Will retry on next signal."
                         )
                 else:
-                    if six_hr_low:
+                    # Always log status, with appropriate detail level
+                    if six_hr_low is not None:
                         logger.info(
                             f"No entry signal. Current: ${current_price:,.2f}, "
                             f"6hr Low: ${six_hr_low:,.2f}, Spike: {spike_pct:.2f}%"
                         )
                     else:
+                        # Still building price history (need at least 2 entries for comparison)
                         logger.info(
                             f"Building price history. Current: ${current_price:,.2f}, "
                             f"History entries: {len(state['price_history'])}"
