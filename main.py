@@ -45,7 +45,8 @@ def main():
     logger.info(f"State loaded. Position open: {state['position_open']}")
     
     # Optional: Reset state if RESET_STATE environment variable is set
-    if os.getenv('RESET_STATE', '').lower() == 'true':
+    reset_requested = os.getenv('RESET_STATE', '').lower() == 'true'
+    if reset_requested:
         if state['position_open']:
             logger.info("RESET_STATE=true detected. Closing position...")
             close_position(state)
@@ -53,6 +54,13 @@ def main():
             logger.info("Position closed. State reset.")
         else:
             logger.info("RESET_STATE=true detected, but no position is open.")
+        
+        # Also clear price history if RESET_STATE_FULL is set
+        if os.getenv('RESET_STATE_FULL', '').lower() == 'true':
+            logger.info("RESET_STATE_FULL=true detected. Clearing price history...")
+            state['price_history'] = []
+            save_state(state)
+            logger.info("Price history cleared.")
     
     # Main monitoring loop
     loop_count = 0
@@ -93,8 +101,9 @@ def main():
                         f"Current: ${current_price:,.2f}, P/L: {pnl_pct:.2f}%"
                     )
                     
-                    # Send exit alert
-                    send_exit_alert(
+                    # Send exit alert - close position regardless of email success
+                    # (we still want to close even if email fails)
+                    email_sent = send_exit_alert(
                         config['gmail_user'],
                         config['gmail_app_password'],
                         config['recipients'],
@@ -104,10 +113,13 @@ def main():
                         pnl_pct
                     )
                     
-                    # Close position
+                    # Close position (even if email failed - exit signal is more important)
                     close_position(state)
                     save_state(state)
-                    logger.info("Position closed")
+                    if email_sent:
+                        logger.info("Position closed and exit alert sent")
+                    else:
+                        logger.warning("Position closed but exit alert email failed to send")
                 else:
                     logger.info(
                         f"Position open. Entry: ${entry_price:,.2f}, "
@@ -131,8 +143,8 @@ def main():
                     entry_price = current_price
                     tp_price, sl_price = calculate_target_prices(entry_price)
                     
-                    # Send entry alert
-                    send_entry_alert(
+                    # Send entry alert - only open position if email succeeds
+                    email_sent = send_entry_alert(
                         config['gmail_user'],
                         config['gmail_app_password'],
                         config['recipients'],
@@ -144,10 +156,16 @@ def main():
                         sl_price
                     )
                     
-                    # Open position
-                    open_position(entry_price, state)
-                    save_state(state)
-                    logger.info(f"Position opened at ${entry_price:,.2f}")
+                    if email_sent:
+                        # Only open position if email was sent successfully
+                        open_position(entry_price, state)
+                        save_state(state)
+                        logger.info(f"Position opened at ${entry_price:,.2f}")
+                    else:
+                        logger.warning(
+                            f"Entry signal detected but email failed to send. "
+                            f"Position NOT opened. Will retry on next signal."
+                        )
                 else:
                     if six_hr_low:
                         logger.info(
