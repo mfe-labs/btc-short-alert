@@ -67,20 +67,19 @@ def main():
     while True:
         try:
             loop_count += 1
-            logger.info(f"--- Loop iteration {loop_count} ---")
             
             # Fetch current BTC price
             price_data = fetch_btc_price()
             
             if price_data is None:
-                logger.warning("Failed to fetch price. Retrying in next cycle...")
+                logger.warning(f"[Loop {loop_count}] Failed to fetch price. Retrying in next cycle...")
                 time.sleep(60)
                 continue
             
             current_price = price_data['price']
             timestamp = price_data['timestamp']
             
-            logger.info(f"Current BTC price: ${current_price:,.2f}")
+            logger.info(f"[Loop {loop_count}] Current BTC price: ${current_price:,.2f}")
             
             # Add price to history and clean up old entries
             add_price_to_history(current_price, timestamp, state)
@@ -97,7 +96,7 @@ def main():
                     pnl_pct = ((current_price - entry_price) / entry_price) * 100
                     
                     logger.info(
-                        f"{exit_signal} triggered! Entry: ${entry_price:,.2f}, "
+                        f"[Loop {loop_count}] {exit_signal} triggered! Entry: ${entry_price:,.2f}, "
                         f"Current: ${current_price:,.2f}, P/L: {pnl_pct:.2f}%"
                     )
                     
@@ -117,12 +116,12 @@ def main():
                     close_position(state)
                     save_state(state)
                     if email_sent:
-                        logger.info("Position closed and exit alert sent")
+                        logger.info(f"[Loop {loop_count}] Position closed and exit alert sent")
                     else:
-                        logger.warning("Position closed but exit alert email failed to send")
+                        logger.warning(f"[Loop {loop_count}] Position closed but exit alert email failed to send")
                 else:
                     logger.info(
-                        f"Position open. Entry: ${entry_price:,.2f}, "
+                        f"[Loop {loop_count}] Position open. Entry: ${entry_price:,.2f}, "
                         f"Current: ${current_price:,.2f}, "
                         f"Change: {((current_price - entry_price) / entry_price) * 100:.2f}%"
                     )
@@ -135,7 +134,7 @@ def main():
                 
                 if signal_triggered:
                     logger.info(
-                        f"Entry signal triggered! Spike: {spike_pct:.2f}%, "
+                        f"[Loop {loop_count}] Entry signal triggered! Spike: {spike_pct:.2f}%, "
                         f"6hr Low: ${six_hr_low:,.2f}, Current: ${current_price:,.2f}"
                     )
                     
@@ -160,23 +159,23 @@ def main():
                         # Only open position if email was sent successfully
                         open_position(entry_price, state)
                         save_state(state)
-                        logger.info(f"Position opened at ${entry_price:,.2f}")
+                        logger.info(f"[Loop {loop_count}] Position opened at ${entry_price:,.2f}")
                     else:
                         logger.warning(
-                            f"Entry signal detected but email failed to send. "
+                            f"[Loop {loop_count}] Entry signal detected but email failed to send. "
                             f"Position NOT opened. Will retry on next signal."
                         )
                 else:
                     # Always log status, with appropriate detail level
                     if six_hr_low is not None:
                         logger.info(
-                            f"No entry signal. Current: ${current_price:,.2f}, "
+                            f"[Loop {loop_count}] No entry signal. Current: ${current_price:,.2f}, "
                             f"6hr Low: ${six_hr_low:,.2f}, Spike: {spike_pct:.2f}%"
                         )
                     else:
                         # Still building price history (need at least 2 entries for comparison)
                         logger.info(
-                            f"Building price history. Current: ${current_price:,.2f}, "
+                            f"[Loop {loop_count}] Building price history. Current: ${current_price:,.2f}, "
                             f"History entries: {len(state['price_history'])}"
                         )
             
