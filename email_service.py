@@ -2,6 +2,7 @@
 Email Service - Sends alerts via Gmail SMTP
 """
 import smtplib
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import List
@@ -12,10 +13,11 @@ def send_email(
     gmail_password: str,
     recipients: List[str],
     subject: str,
-    body: str
+    body: str,
+    max_retries: int = 3
 ) -> bool:
     """
-    Send email via Gmail SMTP
+    Send email via Gmail SMTP with retry logic
     
     Args:
         gmail_user: Gmail address
@@ -23,33 +25,64 @@ def send_email(
         recipients: List of recipient email addresses
         subject: Email subject
         body: Email body (HTML)
+        max_retries: Maximum number of retry attempts
         
     Returns:
         True if successful, False otherwise
     """
-    try:
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject
-        msg['From'] = gmail_user
-        msg['To'] = ', '.join(recipients)
+    # Create message
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = subject
+    msg['From'] = gmail_user
+    msg['To'] = ', '.join(recipients)
+    
+    # Create HTML body
+    html_body = MIMEText(body, 'html')
+    msg.attach(html_body)
+    
+    # Try multiple SMTP methods with retries
+    smtp_configs = [
+        # Method 1: TLS on port 587 (standard)
+        {'host': 'smtp.gmail.com', 'port': 587, 'use_tls': True, 'use_ssl': False},
+        # Method 2: SSL on port 465 (alternative)
+        {'host': 'smtp.gmail.com', 'port': 465, 'use_tls': False, 'use_ssl': True},
+    ]
+    
+    for attempt in range(max_retries):
+        for config in smtp_configs:
+            try:
+                if config['use_ssl']:
+                    # Use SSL connection
+                    server = smtplib.SMTP_SSL(config['host'], config['port'], timeout=10)
+                else:
+                    # Use TLS connection
+                    server = smtplib.SMTP(config['host'], config['port'], timeout=10)
+                    server.starttls()
+                
+                server.login(gmail_user, gmail_password)
+                server.send_message(msg)
+                server.quit()
+                
+                print(f"Email sent successfully to {recipients}")
+                return True
+                
+            except Exception as e:
+                print(f"SMTP attempt {attempt + 1} failed ({config['host']}:{config['port']}): {e}")
+                if hasattr(server, 'quit'):
+                    try:
+                        server.quit()
+                    except:
+                        pass
+                continue
         
-        # Create HTML body
-        html_body = MIMEText(body, 'html')
-        msg.attach(html_body)
-        
-        # Send email
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(gmail_user, gmail_password)
-            server.send_message(msg)
-        
-        print(f"Email sent successfully to {recipients}")
-        return True
-        
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
+        # Wait before retry (exponential backoff)
+        if attempt < max_retries - 1:
+            wait_time = 2 ** attempt  # 1s, 2s, 4s
+            print(f"Retrying in {wait_time} seconds...")
+            time.sleep(wait_time)
+    
+    print(f"Failed to send email after {max_retries} attempts")
+    return False
 
 
 def send_entry_alert(
